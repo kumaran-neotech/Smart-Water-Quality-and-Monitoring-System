@@ -309,7 +309,7 @@
         auth.signInWithEmailAndPassword(email, password)
           .then(() => {
             showMessage("Login successful! Redirecting...", false);
-            setTimeout(() => { window.location.href = "front.html"; }, 800);
+            setTimeout(() => { window.location.href = "index.html";  }, 800);
           })
           .catch((err) => {
             submitBtn.disabled = false;
@@ -342,7 +342,7 @@
         })
         .then(() => {
           showMessage("Google sign-in successful! Redirecting...", false);
-          setTimeout(() => { window.location.href = "front.html"; }, 800);
+          setTimeout(() => { window.location.href = "index.html"; }, 800);
         })
         .catch((err) => {
           showMessage(err.message, true);
