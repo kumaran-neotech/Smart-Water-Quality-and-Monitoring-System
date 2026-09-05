@@ -17,6 +17,9 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+  <!-- EmailJS Browser SDK (100% Free) -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
   <style>
     :root {
       --bg: #06131a;
@@ -277,9 +280,6 @@
       font-size: 13.5px;
       color: #ffd2da;
     }
-    .alert-panel ul.actions-list {
-      color: #93c5fd;
-    }
 
     /* Sensor Readouts Grid */
     .readouts {
@@ -497,64 +497,49 @@
   </div>
 
   <script>
-    const WEB3FORMS_KEY = "5a2f915b-00d3-463e-a719-2c1417a3de49";
+    // --- 1. EMAILJS CONFIGURATION ---
+    // Replace these two with your IDs from EmailJS
+    const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";     // From Email Services tab (e.g. service_xxxxxxx)
+    const EMAILJS_TEMPLATE_ID = "gsmp8uj";            // Your configured template ID
+    const EMAILJS_PUBLIC_KEY = "YOUR_PUBLIC_KEY";     // From Account tab
 
-let wasSafeEarlier = true;
-let lastAlertSentTime = 0;
-const ALERT_COOLDOWN_MS = 15 * 60 * 1000; // 15-minute cooldown to prevent spam
+    emailjs.init(EMAILJS_PUBLIC_KEY);
 
-function sendEmailNotification(userEmail, userName, violations, ph, tds, turb, temp) {
-  const now = Date.now();
-  if (now - lastAlertSentTime < ALERT_COOLDOWN_MS) {
-    console.log("Email throttled: Cooldown period active.");
-    return;
-  }
+    let wasSafeEarlier = true;
+    let lastAlertSentTime = 0;
+    const ALERT_COOLDOWN_MS = 10 * 60 * 1000; // 10-minute cooldown to prevent spamming your free limit
 
-  const messageBody = `
-Dear ${userName || "Operator"},
+    function sendEmailToActiveUser(recipientEmail, operatorName, violations, ph, tds, turb, temp) {
+      const now = Date.now();
+      if (now - lastAlertSentTime < ALERT_COOLDOWN_MS) {
+        console.log("Email throttled: Cooldown active.");
+        return;
+      }
 
-A water quality violation was detected by your Smart Monitoring System:
+      const templateParams = {
+        to_email: recipientEmail, // Dynamically routes directly to the logged-in user!
+        user_name: operatorName || "Operator",
+        violations: violations.map(v => "• " + v).join("\n"),
+        ph: ph.toFixed(2),
+        tds: tds.toFixed(1),
+        turb: turb.toFixed(2),
+        temp: temp.toFixed(1),
+        time: new Date().toLocaleTimeString()
+      };
 
-VIOLATIONS:
-${violations.map(v => "• " + v).join("\n")}
+      console.log("Dispatching alert to user:", recipientEmail);
 
-TELEMETRY READINGS:
-• pH Level: ${ph.toFixed(2)}
-• Total Dissolved Solids: ${tds.toFixed(1)} ppm
-• Turbidity: ${turb.toFixed(2)} NTU
-• Temperature: ${temp.toFixed(1)} °C
-
-Timestamp: ${new Date().toLocaleTimeString()}
-
-Please check the system immediately.
-  `.trim();
-
-  fetch("https://api.web3forms.com/submit", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    },
-    body: JSON.stringify({
-      access_key: WEB3FORMS_KEY,
-      subject: " Water Quality Alert: Contamination Detected!",
-      from_name: "Smart Water Monitor",
-      to_email: userEmail,
-      message: messageBody
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      console.log("Alert email sent successfully!");
-      lastAlertSentTime = now;
-    } else {
-      console.error("Web3Forms error:", data.message);
+      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+        .then((res) => {
+          console.log("Alert email delivered successfully!", res.status, res.text);
+          lastAlertSentTime = now;
+        })
+        .catch((err) => {
+          console.error("EmailJS failed to deliver:", err);
+        });
     }
-  })
-  .catch(err => console.error("Failed to send alert:", err));
-}
-    // --- FIREBASE CONFIGURATION ---
+
+    // --- 2. FIREBASE CONFIGURATION ---
     const firebaseConfig = {
       apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
       authDomain: "smart-water-purification-96dc4.firebaseapp.com",
@@ -569,7 +554,7 @@ Please check the system immediately.
     const auth = firebase.auth();
     const db = firebase.database();
 
-    // --- AUTH STATE GUARD ---
+    // --- 3. AUTH STATE GUARD ---
     auth.onAuthStateChanged((user) => {
       if (!user) {
         window.location.href = "login.html";
@@ -589,7 +574,7 @@ Please check the system immediately.
       });
     }
 
-    // --- CHART INITIALIZATION (Dark Aquatic Theme) ---
+    // --- 4. CHART INITIALIZATION ---
     const ctx = document.getElementById('liveChart').getContext('2d');
     const liveChart = new Chart(ctx, {
       type: 'line',
@@ -620,7 +605,7 @@ Please check the system immediately.
       }
     });
 
-    // --- DYNAMIC GAUGE HELPER ---
+    // --- 5. DYNAMIC GAUGE HELPER ---
     function updateGauge(wqi) {
       const deg = (wqi / 100) * 360;
       const color = wqi >= 80 ? '#00e599' : (wqi >= 50 ? '#ffb833' : '#ff4d6a');
@@ -629,7 +614,7 @@ Please check the system immediately.
       document.getElementById('wqiGauge').style.filter = `drop-shadow(0 0 16px ${color}40)`;
     }
 
-    // --- WQI EVALUATION ---
+    // --- 6. WQI EVALUATION ---
     function computeWQI(ph, tds, turb) {
       let score = 100;
       if (ph < 6.5 || ph > 8.5) score -= 35;
@@ -638,7 +623,7 @@ Please check the system immediately.
       return Math.max(0, score);
     }
 
-    // --- LOCALSTORAGE PERSISTENT LOGS ---
+    // --- 7. LOCAL STORAGE LOGS ---
     let savedLogs = JSON.parse(localStorage.getItem('waterQualityLogs')) || [];
 
     function renderUIFromLogs() {
@@ -680,8 +665,7 @@ Please check the system immediately.
       }
     }
 
-    // --- REALTIME LISTENER ON /live_data ---
-// --- REALTIME LISTENER ON /live_data ---
+    // --- 8. REALTIME LISTENER ON /live_data ---
     db.ref('/live_data').on('value', (snapshot) => {
       const data = snapshot.val();
 
@@ -699,13 +683,13 @@ Please check the system immediately.
 
       const currentSignature = `${ph.toFixed(2)}_${tds.toFixed(1)}_${turb.toFixed(2)}_${temp.toFixed(1)}`;
 
-      // 1. Update Sensor Value Cards
+      // Update sensor value cards
       document.getElementById('phVal').innerText = ph;
       document.getElementById('tdsVal').innerText = tds;
       document.getElementById('turbVal').innerText = turb;
       document.getElementById('tempVal').innerText = temp + '°C';
 
-      // 2. Evaluate Violations
+      // Evaluate violations
       let issues = [];
 
       if (ph < 6.5) {
@@ -734,13 +718,12 @@ Please check the system immediately.
         banner.className = 'status-banner safe';
         banner.innerText = '🟢 Safe Water — Potable';
         alertBox.style.display = 'none';
-        wasSafeEarlier = true; // Reset trigger state so the next unsafe reading alerts
+        wasSafeEarlier = true; // Reset trigger state when safe
       } else {
         banner.className = 'status-banner unsafe';
         banner.innerText = '🔴 Unsafe Water — Contamination Detected';
         alertBox.style.display = 'block';
         
-        // Filter out empty strings to prevent blank bullet dots
         const validIssues = issues.filter(item => item && item.trim().length > 0);
         const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
 
@@ -750,24 +733,24 @@ Please check the system immediately.
           <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
         `;
 
-        // --- DISPATCH EMAIL ONLY ON SAFE -> UNSAFE TRANSITION ---
+        // Dispatch email dynamically to the logged-in user on transition
         if (wasSafeEarlier) {
           const activeUser = auth.currentUser;
           if (activeUser && activeUser.email) {
             const operatorName = document.getElementById('displayUserName').innerText;
-            sendEmailNotification(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
+            sendEmailToActiveUser(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
           }
-          wasSafeEarlier = false; // Prevent repeat alerts until water normalizes
+          wasSafeEarlier = false;
         }
       }
 
-      // 3. Compute and render WQI
+      // Compute and render WQI
       const wqi = computeWQI(ph, tds, turb);
       document.getElementById('wqiVal').innerText = wqi;
       document.getElementById('wqiGrade').innerText = wqi >= 80 ? 'Good — Potable Quality' : 'Poor — Treatment Required';
       updateGauge(wqi);
 
-      // 4. Prevent duplicate table rows on page reload
+      // Prevent duplicate table entries
       const lastSavedSignature = localStorage.getItem('lastSavedReading');
 
       if (lastSavedSignature === currentSignature) {
