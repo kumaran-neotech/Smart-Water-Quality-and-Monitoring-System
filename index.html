@@ -681,36 +681,8 @@ Please check the system immediately.
     }
 
     // --- REALTIME LISTENER ON /live_data ---
+// --- REALTIME LISTENER ON /live_data ---
     db.ref('/live_data').on('value', (snapshot) => {
-      if (isSafe) {
-        banner.className = 'status-banner safe';
-        banner.innerText = '🟢 Safe Water — Potable';
-        alertBox.style.display = 'none';
-        wasSafeEarlier = true; // Reset state when water stabilizes
-      } else {
-        banner.className = 'status-banner unsafe';
-        banner.innerText = '🔴 Unsafe Water — Contamination Detected';
-        alertBox.style.display = 'block';
-
-        const validIssues = issues.filter(item => item && item.trim().length > 0);
-        const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
-
-        alertBox.innerHTML = `
-          <div class="alert-title">⚠️ Immediate Attention Required</div>
-          <div class="section-title">Violations:</div>
-          <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
-        `;
-
-        // --- DISPATCH EMAIL ONLY ON SAFE -> UNSAFE TRANSITION ---
-        if (wasSafeEarlier) {
-          const activeUser = auth.currentUser;
-          if (activeUser && activeUser.email) {
-            const operatorName = document.getElementById('displayUserName').innerText;
-            sendEmailNotification(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
-          }
-          wasSafeEarlier = false; // Prevents continuous firing on every telemetry packet
-        }
-      }
       const data = snapshot.val();
 
       const liveDot = document.getElementById('liveDot');
@@ -733,31 +705,25 @@ Please check the system immediately.
       document.getElementById('turbVal').innerText = turb;
       document.getElementById('tempVal').innerText = temp + '°C';
 
-      // 2. Evaluate Violations & Prescriptive Recommended Actions
+      // 2. Evaluate Violations
       let issues = [];
-      let actions = [];
 
       if (ph < 6.5) {
         issues.push(`Acidic Water detected (pH ${ph} < 6.5 threshold)`);
-        
       } else if (ph > 8.5) {
         issues.push(`Alkaline Water detected (pH ${ph} > 8.5 threshold)`);
-        
       }
 
       if (tds > 500) {
         issues.push(`High Dissolved Solids (${tds} ppm > 500 ppm limit)`);
-        
       }
 
       if (turb > 5.0) {
         issues.push(`High Turbidity (${turb} NTU > 5.0 NTU limit)`);
-       
       }
 
       if (temp > 35.0) {
         issues.push(`High Water Temperature (${temp}°C)`);
-        
       }
 
       const banner = document.getElementById('statusBanner');
@@ -768,6 +734,7 @@ Please check the system immediately.
         banner.className = 'status-banner safe';
         banner.innerText = '🟢 Safe Water — Potable';
         alertBox.style.display = 'none';
+        wasSafeEarlier = true; // Reset trigger state so the next unsafe reading alerts
       } else {
         banner.className = 'status-banner unsafe';
         banner.innerText = '🔴 Unsafe Water — Contamination Detected';
@@ -778,10 +745,20 @@ Please check the system immediately.
         const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
 
         alertBox.innerHTML = `
-          <div class="alert-title"> Immediate Attention Required</div>
+          <div class="alert-title">⚠️ Immediate Attention Required</div>
           <div class="section-title">Violations:</div>
           <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
         `;
+
+        // --- DISPATCH EMAIL ONLY ON SAFE -> UNSAFE TRANSITION ---
+        if (wasSafeEarlier) {
+          const activeUser = auth.currentUser;
+          if (activeUser && activeUser.email) {
+            const operatorName = document.getElementById('displayUserName').innerText;
+            sendEmailNotification(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
+          }
+          wasSafeEarlier = false; // Prevent repeat alerts until water normalizes
+        }
       }
 
       // 3. Compute and render WQI
