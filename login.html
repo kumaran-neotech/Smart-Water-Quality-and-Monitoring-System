@@ -208,6 +208,8 @@
   </div>
 
   <script>
+    // --- WEB3FORMS CONFIGURATION ---
+
     const firebaseConfig = {
       apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
       authDomain: "smart-water-purification-96dc4.firebaseapp.com",
@@ -295,7 +297,7 @@
           })
           .then(() => {
             showMessage("Account created! Redirecting...", false);
-            setTimeout(() => { window.location.href = "front.html"; }, 800);
+            setTimeout(() => { window.location.href = "index.html"; }, 800);
           })
           .catch((err) => {
             submitBtn.disabled = false;

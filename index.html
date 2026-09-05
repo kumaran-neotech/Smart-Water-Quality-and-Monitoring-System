@@ -497,6 +497,63 @@
   </div>
 
   <script>
+    const WEB3FORMS_KEY = "5a2f915b-00d3-463e-a719-2c1417a3de49";
+
+let wasSafeEarlier = true;
+let lastAlertSentTime = 0;
+const ALERT_COOLDOWN_MS = 15 * 60 * 1000; // 15-minute cooldown to prevent spam
+
+function sendEmailNotification(userEmail, userName, violations, ph, tds, turb, temp) {
+  const now = Date.now();
+  if (now - lastAlertSentTime < ALERT_COOLDOWN_MS) {
+    console.log("Email throttled: Cooldown period active.");
+    return;
+  }
+
+  const messageBody = `
+Dear ${userName || "Operator"},
+
+A water quality violation was detected by your Smart Monitoring System:
+
+VIOLATIONS:
+${violations.map(v => "• " + v).join("\n")}
+
+TELEMETRY READINGS:
+• pH Level: ${ph.toFixed(2)}
+• Total Dissolved Solids: ${tds.toFixed(1)} ppm
+• Turbidity: ${turb.toFixed(2)} NTU
+• Temperature: ${temp.toFixed(1)} °C
+
+Timestamp: ${new Date().toLocaleTimeString()}
+
+Please check the system immediately.
+  `.trim();
+
+  fetch("https://api.web3forms.com/submit", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify({
+      access_key: WEB3FORMS_KEY,
+      subject: " Water Quality Alert: Contamination Detected!",
+      from_name: "Smart Water Monitor",
+      to_email: userEmail,
+      message: messageBody
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      console.log("Alert email sent successfully!");
+      lastAlertSentTime = now;
+    } else {
+      console.error("Web3Forms error:", data.message);
+    }
+  })
+  .catch(err => console.error("Failed to send alert:", err));
+}
     // --- FIREBASE CONFIGURATION ---
     const firebaseConfig = {
       apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
@@ -625,6 +682,35 @@
 
     // --- REALTIME LISTENER ON /live_data ---
     db.ref('/live_data').on('value', (snapshot) => {
+      if (isSafe) {
+        banner.className = 'status-banner safe';
+        banner.innerText = '🟢 Safe Water — Potable';
+        alertBox.style.display = 'none';
+        wasSafeEarlier = true; // Reset state when water stabilizes
+      } else {
+        banner.className = 'status-banner unsafe';
+        banner.innerText = '🔴 Unsafe Water — Contamination Detected';
+        alertBox.style.display = 'block';
+
+        const validIssues = issues.filter(item => item && item.trim().length > 0);
+        const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
+
+        alertBox.innerHTML = `
+          <div class="alert-title">⚠️ Immediate Attention Required</div>
+          <div class="section-title">Violations:</div>
+          <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
+        `;
+
+        // --- DISPATCH EMAIL ONLY ON SAFE -> UNSAFE TRANSITION ---
+        if (wasSafeEarlier) {
+          const activeUser = auth.currentUser;
+          if (activeUser && activeUser.email) {
+            const operatorName = document.getElementById('displayUserName').innerText;
+            sendEmailNotification(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
+          }
+          wasSafeEarlier = false; // Prevents continuous firing on every telemetry packet
+        }
+      }
       const data = snapshot.val();
 
       const liveDot = document.getElementById('liveDot');
