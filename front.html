@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Water Purification & Quality Telemetry</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Firebase App, Auth & Database SDK (v8) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    :root {
+      --bg: #06131a;
+      --panel: rgba(13, 31, 41, 0.7);
+      --panel-border: rgba(32, 79, 100, 0.35);
+      --panel-glow: rgba(0, 212, 255, 0.08);
+      --text: #eaf3f7;
+      --muted: #7e9ca9;
+      --cyan: #00d4ff;
+      --cyan-soft: rgba(0, 212, 255, 0.12);
+      --good: #00e599;
+      --good-soft: rgba(0, 229, 153, 0.15);
+      --warn: #ffb833;
+      --warn-soft: rgba(255, 184, 51, 0.15);
+      --bad: #ff4d6a;
+      --bad-soft: rgba(255, 77, 106, 0.18);
+      --ph: #38bdf8;
+      --tds: #34d399;
+      --turb: #fbbf24;
+      --temp: #f87171;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0 0 60px;
+      background: var(--bg);
+      background-image: 
+        radial-gradient(at 10% 10%, rgba(0, 212, 255, 0.09) 0px, transparent 50%),
+        radial-gradient(at 90% 90%, rgba(0, 229, 153, 0.06) 0px, transparent 50%);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Top Bar */
+    .topbar {
+      background: rgba(6, 19, 26, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar .brand { display: flex; flex-direction: column; gap: 3px; }
+    .topbar h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, #ffffff, #a5f3fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .topbar .tagline { font-size: 12.5px; color: var(--muted); }
+    .live-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 212, 255, 0.08);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      padding: 7px 16px;
+      border-radius: 30px;
+      font-size: 13px;
+      color: #bcecf6;
+      font-weight: 500;
+    }
+    .live-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 0 0 rgba(0, 229, 153, 0.6);
+      animation: pulse 2s infinite;
+    }
+    .live-dot.off { background: var(--warn); animation: none; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 229, 153, 0.5); }
+      70% { box-shadow: 0 0 0 10px rgba(0, 229, 153, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 229, 153, 0); }
+    }
+
+    .container { max-width: 1120px; margin: 0 auto; padding: 24px 20px 0; }
+
+    /* User Profile Bar */
+    .user-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      padding: 12px 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 13.5px;
+      color: var(--muted);
+    }
+    .user-bar b { color: var(--text); }
+    .signout-btn {
+      background: rgba(255, 77, 106, 0.12);
+      color: var(--bad);
+      border: 1px solid rgba(255, 77, 106, 0.3);
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .signout-btn:hover {
+      background: var(--bad);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(255, 77, 106, 0.4);
+    }
+
+    /* Hero Gauge & Verdict */
+    .hero {
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 30px;
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 36px;
+      align-items: center;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.4), transparent);
+    }
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .gauge {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: conic-gradient(var(--cyan) 0deg, rgba(255,255,255,0.06) 0deg 360deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.5s ease;
+      filter: drop-shadow(0 0 12px rgba(0, 212, 255, 0.2));
+    }
+    .gauge-inner {
+      width: 124px;
+      height: 124px;
+      border-radius: 50%;
+      background: #091a24;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--panel-border);
+    }
+    .gauge-inner .num {
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+    .gauge-inner .label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .gauge-caption { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+    .verdict-side h2#wqiGrade {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .status-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      margin-bottom: 16px;
+      transition: all 0.3s ease;
+    }
+    .status-banner.safe {
+      background: var(--good-soft);
+      color: var(--good);
+      border: 1px solid rgba(0, 229, 153, 0.3);
+      box-shadow: 0 0 20px rgba(0, 229, 153, 0.15);
+    }
+    .status-banner.unsafe {
+      background: var(--bad-soft);
+      color: var(--bad);
+      border: 1px solid rgba(255, 77, 106, 0.3);
+      box-shadow: 0 0 20px rgba(255, 77, 106, 0.2);
+    }
+
+    .meta-row {
+      display: flex;
+      gap: 24px;
+      font-size: 13px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .meta-row b { color: var(--cyan); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+    /* Actionable Alerts Panel */
+    .alert-panel {
+      display: none;
+      background: rgba(255, 77, 106, 0.08);
+      border: 1px solid rgba(255, 77, 106, 0.25);
+      border-radius: 14px;
+      padding: 18px 22px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .alert-panel .alert-title {
+      color: var(--bad);
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .alert-panel .section-title {
+      font-size: 12.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin: 10px 0 4px 0;
+      font-weight: 700;
+    }
+    .alert-panel ul {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13.5px;
+      color: #ffd2da;
+    }
+    .alert-panel ul.actions-list {
+      color: #93c5fd;
+    }
+
+    /* Sensor Readouts Grid */
+    .readouts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .readout {
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-top: 3px solid var(--accent, var(--cyan));
+      border-radius: 14px;
+      padding: 20px 22px;
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .readout:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+    .readout .label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .readout .val {
+      font-size: 32px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+    .readout .range {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .readout.ph   { --accent: var(--ph); }
+    .readout.tds  { --accent: var(--tds); }
+    .readout.turb { --accent: var(--turb); }
+    .readout.temp { --accent: var(--temp); }
+
+    /* Content Boxes */
+    .section-box {
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 24px 26px;
+      margin-bottom: 24px;
+    }
+    .section-box h2 {
+      margin: 0 0 18px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* History Table */
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 13px 12px; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 13.5px; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { font-family: 'JetBrains Mono', monospace; color: #d1d5db; }
+    td:last-child, th:last-child { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+    .badge-safe {
+      background: var(--good-soft);
+      color: var(--good);
+      border: 1px solid rgba(0, 229, 153, 0.3);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 11.5px;
+    }
+    .badge-unsafe {
+      background: var(--bad-soft);
+      color: var(--bad);
+      border: 1px solid rgba(255, 77, 106, 0.3);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 11.5px;
+    }
+
+    .clear-btn {
+      padding: 6px 14px;
+      font-size: 12px;
+      background: rgba(255, 77, 106, 0.1);
+      color: var(--bad);
+      border: 1px solid rgba(255, 77, 106, 0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .clear-btn:hover {
+      background: var(--bad);
+      color: #fff;
+    }
+
+    @media (max-width: 650px) {
+      .hero { grid-template-columns: 1fr; text-align: center; }
+      .gauge-wrap { justify-self: center; }
+      .meta-row { justify-content: center; }
+      .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <div class="topbar">
+    <div class="brand">
+      <h1>Smart Water Purification &amp; Telemetry</h1>
+      <span class="tagline">IoT Monitoring System • SIH Edition</span>
+    </div>
+    <div class="live-pill">
+      <span class="live-dot off" id="liveDot"></span>
+      <span id="liveLabel">Connecting to Cloud…</span>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Logged-in User Profile Bar -->
+    <div class="user-bar">
+      <div>
+        Active Operator: <b id="displayUserName">Authenticating…</b> 
+        (<span id="displayUserEmail" class="mono">--</span>)
+      </div>
+      <button class="signout-btn" onclick="handleSignOut()">Sign Out</button>
+    </div>
+
+    <!-- Hero: Gauge + Potability Verdict -->
+    <div class="hero">
+      <div class="gauge-wrap">
+        <div class="gauge" id="wqiGauge">
+          <div class="gauge-inner">
+            <span class="num" id="wqiVal">--</span>
+            <span class="label">INDEX</span>
+          </div>
+        </div>
+        <span class="gauge-caption">Water Quality Index (WQI)</span>
+      </div>
+      <div class="verdict-side">
+        <h2 id="wqiGrade">Awaiting Telemetry…</h2>
+        <div id="statusBanner" class="status-banner safe">Awaiting first reading</div>
+        <div class="meta-row">
+          <span>Last Tested: <b id="lastUpdatedTime">--</b></span>
+          <span>Source: <b>Firebase RTDB /live_data</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prescriptive Actionable Alert Panel -->
+    <div id="alertBox" class="alert-panel"></div>
+
+    <!-- Primary Sensor Readouts -->
+    <div class="readouts">
+      <div class="readout ph">
+        <div class="label">pH Level</div>
+        <div class="val" id="phVal">--</div>
+        <div class="range">Standard: 6.5 – 8.5</div>
+      </div>
+      <div class="readout tds">
+        <div class="label">Total Dissolved Solids</div>
+        <div class="val" id="tdsVal">--</div>
+        <div class="range">ppm (Max Limit: 500)</div>
+      </div>
+      <div class="readout turb">
+        <div class="label">Turbidity</div>
+        <div class="val" id="turbVal">--</div>
+        <div class="range">NTU (Max Limit: 5.0)</div>
+      </div>
+      <div class="readout temp">
+        <div class="label">Temperature</div>
+        <div class="val" id="tempVal">--</div>
+        <div class="range">°C (Water probe)</div>
+      </div>
+    </div>
+
+    <!-- Parameter Variation Chart -->
+    <div class="section-box">
+      <h2>Parameter Variation History</h2>
+      <canvas id="liveChart" height="85"></canvas>
+    </div>
+
+    <!-- Historical Log Table -->
+    <div class="section-box">
+      <h2>
+        Session Test Logs
+        <button class="clear-btn" onclick="clearAllLogs()">Clear History</button>
+      </h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time Tested</th>
+            <th>pH</th>
+            <th>TDS (ppm)</th>
+            <th>Turbidity (NTU)</th>
+            <th>Temp (°C)</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // --- FIREBASE CONFIGURATION ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
+      authDomain: "smart-water-purification-96dc4.firebaseapp.com",
+      databaseURL: "https://smart-water-purification-96dc4-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "smart-water-purification-96dc4",
+      storageBucket: "smart-water-purification-96dc4.firebasestorage.app",
+      messagingSenderId: "360341777265",
+      appId: "1:360341777265:web:c0df4e2aa1e3cf55ebc980"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // --- AUTH STATE GUARD ---
+    auth.onAuthStateChanged((user) => {
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        document.getElementById('displayUserEmail').innerText = user.email;
+        db.ref('users/' + user.uid).once('value', (snap) => {
+          const profile = snap.val();
+          document.getElementById('displayUserName').innerText = 
+            (profile && profile.name) ? profile.name : (user.displayName || "Operator");
+        });
+      }
+    });
+
+    function handleSignOut() {
+      auth.signOut().then(() => {
+        window.location.href = "login.html";
+      });
+    }
+
+    // --- CHART INITIALIZATION (Dark Aquatic Theme) ---
+    const ctx = document.getElementById('liveChart').getContext('2d');
+    const liveChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'pH', borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.1)', data: [], tension: 0.3, fill: false, borderWidth: 2.5 },
+          { label: 'Turbidity (NTU)', borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', data: [], tension: 0.3, fill: false, borderWidth: 2.5 },
+          { label: 'TDS (Scaled ÷ 100)', borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', data: [], tension: 0.3, fill: false, borderWidth: 2.5 }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 12 } } }
+        },
+        scales: {
+          y: { 
+            beginAtZero: true, 
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: '#64748b' }
+          },
+          x: { 
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: '#64748b' }
+          }
+        }
+      }
+    });
+
+    // --- DYNAMIC GAUGE HELPER ---
+    function updateGauge(wqi) {
+      const deg = (wqi / 100) * 360;
+      const color = wqi >= 80 ? '#00e599' : (wqi >= 50 ? '#ffb833' : '#ff4d6a');
+      document.getElementById('wqiGauge').style.background =
+        `conic-gradient(${color} ${deg}deg, rgba(255,255,255,0.06) ${deg}deg 360deg)`;
+      document.getElementById('wqiGauge').style.filter = `drop-shadow(0 0 16px ${color}40)`;
+    }
+
+    // --- WQI EVALUATION ---
+    function computeWQI(ph, tds, turb) {
+      let score = 100;
+      if (ph < 6.5 || ph > 8.5) score -= 35;
+      if (tds > 500) score -= 30;
+      if (turb > 5.0) score -= 35;
+      return Math.max(0, score);
+    }
+
+    // --- LOCALSTORAGE PERSISTENT LOGS ---
+    let savedLogs = JSON.parse(localStorage.getItem('waterQualityLogs')) || [];
+
+    function renderUIFromLogs() {
+      const historyBody = document.getElementById('historyBody');
+      historyBody.innerHTML = '';
+      liveChart.data.labels = [];
+      liveChart.data.datasets[0].data = [];
+      liveChart.data.datasets[1].data = [];
+      liveChart.data.datasets[2].data = [];
+
+      savedLogs.forEach((item) => {
+        liveChart.data.labels.push(item.time);
+        liveChart.data.datasets[0].data.push(item.ph);
+        liveChart.data.datasets[1].data.push(item.turb);
+        liveChart.data.datasets[2].data.push(item.tds / 100);
+
+        const row = `<tr>
+          <td>${item.time}</td>
+          <td>${item.ph}</td>
+          <td>${item.tds}</td>
+          <td>${item.turb}</td>
+          <td>${item.temp}°C</td>
+          <td>${item.isSafe ? '<span class="badge-safe">SAFE</span>' : '<span class="badge-unsafe">UNSAFE</span>'}</td>
+        </tr>`;
+        historyBody.innerHTML = row + historyBody.innerHTML;
+      });
+
+      liveChart.update();
+    }
+
+    renderUIFromLogs();
+
+    function clearAllLogs() {
+      if (confirm("Are you sure you want to clear your telemetry log history?")) {
+        savedLogs = [];
+        localStorage.removeItem('waterQualityLogs');
+        localStorage.removeItem('lastSavedReading');
+        renderUIFromLogs();
+      }
+    }
+
+    // --- REALTIME LISTENER ON /live_data ---
+    db.ref('/live_data').on('value', (snapshot) => {
+      const data = snapshot.val();
+
+      const liveDot = document.getElementById('liveDot');
+      const liveLabel = document.getElementById('liveLabel');
+      liveDot.classList.remove('off');
+      liveLabel.innerText = 'Connected & Telemetry Active';
+
+      if (!data) return;
+
+      const ph = parseFloat(data.ph) || 0;
+      const tds = parseFloat(data.tds) || 0;
+      const turb = parseFloat(data.turbidity) || 0;
+      const temp = parseFloat(data.temperature) || 0;
+
+      const currentSignature = `${ph.toFixed(2)}_${tds.toFixed(1)}_${turb.toFixed(2)}_${temp.toFixed(1)}`;
+
+      // 1. Update Sensor Value Cards
+      document.getElementById('phVal').innerText = ph;
+      document.getElementById('tdsVal').innerText = tds;
+      document.getElementById('turbVal').innerText = turb;
+      document.getElementById('tempVal').innerText = temp + '°C';
+
+      // 2. Evaluate Violations & Prescriptive Recommended Actions
+      let issues = [];
+      let actions = [];
+
+      if (ph < 6.5) {
+        issues.push(`Acidic Water detected (pH ${ph} < 6.5 threshold)`);
+        
+      } else if (ph > 8.5) {
+        issues.push(`Alkaline Water detected (pH ${ph} > 8.5 threshold)`);
+        
+      }
+
+      if (tds > 500) {
+        issues.push(`High Dissolved Solids (${tds} ppm > 500 ppm limit)`);
+        
+      }
+
+      if (turb > 5.0) {
+        issues.push(`High Turbidity (${turb} NTU > 5.0 NTU limit)`);
+       
+      }
+
+      if (temp > 35.0) {
+        issues.push(`High Water Temperature (${temp}°C)`);
+        
+      }
+
+      const banner = document.getElementById('statusBanner');
+      const alertBox = document.getElementById('alertBox');
+      const isSafe = (issues.length === 0);
+
+      if (isSafe) {
+        banner.className = 'status-banner safe';
+        banner.innerText = '🟢 Safe Water — Potable';
+        alertBox.style.display = 'none';
+      } else {
+        banner.className = 'status-banner unsafe';
+        banner.innerText = '🔴 Unsafe Water — Contamination Detected';
+        alertBox.style.display = 'block';
+        
+        // Filter out empty strings to prevent blank bullet dots
+        const validIssues = issues.filter(item => item && item.trim().length > 0);
+        const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
+
+        alertBox.innerHTML = `
+          <div class="alert-title"> Immediate Attention Required</div>
+          <div class="section-title">Violations:</div>
+          <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
+        `;
+      }
+
+      // 3. Compute and render WQI
+      const wqi = computeWQI(ph, tds, turb);
+      document.getElementById('wqiVal').innerText = wqi;
+      document.getElementById('wqiGrade').innerText = wqi >= 80 ? 'Good — Potable Quality' : 'Poor — Treatment Required';
+      updateGauge(wqi);
+
+      // 4. Prevent duplicate table rows on page reload
+      const lastSavedSignature = localStorage.getItem('lastSavedReading');
+
+      if (lastSavedSignature === currentSignature) {
+        if (savedLogs.length > 0) {
+          document.getElementById('lastUpdatedTime').innerText = savedLogs[savedLogs.length - 1].time;
+        }
+        return;
+      }
+
+      const newTime = new Date().toLocaleTimeString();
+      document.getElementById('lastUpdatedTime').innerText = newTime;
+      localStorage.setItem('lastSavedReading', currentSignature);
+
+      const newEntry = {
+        time: newTime,
+        ph: ph,
+        tds: tds,
+        turb: turb,
+        temp: temp,
+        isSafe: isSafe
+      };
+
+      savedLogs.push(newEntry);
+      if (savedLogs.length > 12) savedLogs.shift();
+      localStorage.setItem('waterQualityLogs', JSON.stringify(savedLogs));
+
+      renderUIFromLogs();
+    });
+  </script>
+</body>
+</html>
