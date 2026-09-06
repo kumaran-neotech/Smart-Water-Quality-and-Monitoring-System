@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 
-  
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Firebase App, Auth & Database SDK (v8) -->
@@ -17,7 +17,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
- 
+  <!-- EmailJS Browser SDK (100% Free) -->
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
   <style>
@@ -128,7 +128,7 @@
 
     .container { max-width: 1120px; margin: 0 auto; padding: 24px 20px 0; }
 
-    /* User Profile*/
+    /* User Profile */
     .user-bar {
       display: flex;
       justify-content: space-between;
@@ -297,7 +297,7 @@
       color: #ffd2da;
     }
 
-    /* Sensor Grid*/
+    /* Sensor Grid */
     .readouts {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -430,7 +430,7 @@
 
   <div class="container">
 
-
+    <!-- Operator Profile Bar -->
     <div class="user-bar">
       <div>
         Active Operator: <b id="displayUserName">User</b> 
@@ -439,7 +439,7 @@
       <button class="signout-btn" onclick="handleSignOut()">Sign Out</button>
     </div>
 
-  
+    <!-- Hero: Gauge + Potability Verdict -->
     <div class="hero">
       <div class="gauge-wrap">
         <div class="gauge" id="wqiGauge">
@@ -455,15 +455,15 @@
         <div id="statusBanner" class="status-banner safe">Awaiting first reading</div>
         <div class="meta-row">
           <span>Last Tested: <b id="lastUpdatedTime">--</b></span>
-          <span>Source: <b id="dataSourceLabel">Firebase RTDB</b></span>
+          <span>Source: <b id="dataSourceLabel">Firebase RTDB /live_data</b></span>
         </div>
       </div>
     </div>
 
-   
+    <!-- Actionable Alert Panel -->
     <div id="alertBox" class="alert-panel"></div>
 
-    
+    <!-- Primary Sensor Readouts -->
     <div class="readouts">
       <div class="readout ph">
         <div class="label">pH Level</div>
@@ -487,13 +487,13 @@
       </div>
     </div>
 
-
+    <!-- Parameter Variation Chart -->
     <div class="section-box">
       <h2>Parameter Variation History</h2>
       <canvas id="liveChart" height="85"></canvas>
     </div>
 
-   
+    <!-- Historical Log Table -->
     <div class="section-box">
       <h2>
         Session Test Logs
@@ -516,7 +516,7 @@
   </div>
 
   <script>
-    
+    // --- 1. EMAILJS CONFIGURATION ---
     const EMAILJS_SERVICE_ID = "service_ewmxgqu";
     const EMAILJS_TEMPLATE_ID = "template_21qob55";
     const EMAILJS_PUBLIC_KEY = "V_USgYuuXLJ5IwL4y";
@@ -557,7 +557,7 @@
         });
     }
 
-    
+    // --- 2. FIREBASE CONFIGURATION ---
     const firebaseConfig = {
       apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
       authDomain: "smart-water-purification-96dc4.firebaseapp.com",
@@ -572,13 +572,12 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
-    // --- USER & DEVICE-SCOPED VARIABLES ---
+    // --- USER-SCOPED STORAGE VARIABLES ---
     let currentUserId = null;
-    let currentDeviceId = null;
     let savedLogs = [];
     let liveChart = null;
 
-    // --- CHART INITIALIZATION (Runs only after canvas has size) ---
+    // --- CHART INITIALIZATION (Runs strictly after body is visible) ---
     function initChart() {
       const canvas = document.getElementById('liveChart');
       if (!canvas) return;
@@ -611,7 +610,7 @@
               tension: 0.3, 
               fill: false, 
               borderWidth: 2.5,
-              pointRadius: 4
+              pointRadius: 4 
             },
             { 
               label: 'TDS (Scaled ÷ 100)', 
@@ -621,7 +620,7 @@
               tension: 0.3, 
               fill: false, 
               borderWidth: 2.5,
-              pointRadius: 4
+              pointRadius: 4 
             }
           ]
         },
@@ -653,10 +652,10 @@
       } else {
         currentUserId = user.uid;
         
-        // 1. Reveal page first so canvas gets measurable dimensions
+        // 1. Reveal page container first so canvas has measurable dimensions
         document.body.style.display = "block";
 
-        // 2. Initialize the chart
+        // 2. Initialize the chart once dimensions are active
         initChart();
 
         document.getElementById('displayUserEmail').innerText = user.email;
@@ -665,17 +664,14 @@
           const profile = snap.val() || {};
           document.getElementById('displayUserName').innerText = 
             profile.name || user.displayName || "Operator";
-          
-          currentDeviceId = profile.deviceId || "ESP8266_PURIFIER_01";
-          document.getElementById('dataSourceLabel').innerText = `Device: ${currentDeviceId}`;
-
-          // Start listening to the assigned device
-          startDeviceTelemetryListener(currentDeviceId);
         });
 
         // Load logs strictly associated with this user
         savedLogs = JSON.parse(localStorage.getItem(`waterQualityLogs_${currentUserId}`)) || [];
         renderUIFromLogs();
+
+        // Start listening to real-time telemetry stream
+        startTelemetryListener();
       }
     });
 
@@ -685,7 +681,7 @@
       });
     }
 
-    // --- 5. DYNAMIC GAUGE HELPER ---
+    // --- 4. DYNAMIC GAUGE HELPER ---
     function updateGauge(wqi) {
       const deg = (wqi / 100) * 360;
       const color = wqi >= 80 ? '#00e599' : (wqi >= 50 ? '#ffb833' : '#ff4d6a');
@@ -694,7 +690,7 @@
       document.getElementById('wqiGauge').style.filter = `drop-shadow(0 0 16px ${color}40)`;
     }
 
-    // --- 6. WQI EVALUATION ---
+    // --- 5. WQI EVALUATION ---
     function computeWQI(ph, tds, turb) {
       let score = 100;
       if (ph < 6.5 || ph > 8.5) score -= 35;
@@ -703,7 +699,7 @@
       return Math.max(0, score);
     }
 
-    // --- 7. USER-SCOPED LOG RENDERING ---
+    // --- 6. USER-SCOPED LOG RENDERING ---
     function renderUIFromLogs() {
       const historyBody = document.getElementById('historyBody');
       if (historyBody) historyBody.innerHTML = '';
@@ -745,19 +741,19 @@
       }
     }
 
-    // --- 8. REALTIME TELEMETRY LISTENER ---
-    function startDeviceTelemetryListener(deviceId) {
+    // --- 7. REALTIME TELEMETRY LISTENER ---
+    function startTelemetryListener() {
       const liveDot = document.getElementById('liveDot');
       const liveLabel = document.getElementById('liveLabel');
 
-      // Detach any previous listeners
-      db.ref(`devices/${deviceId}/live_data`).off();
+      // Listen directly to /live_data where the hardware streams values
+      db.ref('/live_data').off();
 
-      db.ref(`devices/${deviceId}/live_data`).on('value', (snapshot) => {
+      db.ref('/live_data').on('value', (snapshot) => {
         const data = snapshot.val();
 
         liveDot.classList.remove('off');
-        liveLabel.innerText = `Active: ${deviceId}`;
+        liveLabel.innerText = 'Connected & Telemetry Active';
 
         if (!data) return;
 
@@ -823,7 +819,8 @@
 
         const lastSavedSignature = localStorage.getItem(`lastSavedReading_${currentUserId}`);
 
-        if (lastSavedSignature === currentSignature) {
+        // Only skip logging identical values if we ALREADY have enough readings for curves
+        if (lastSavedSignature === currentSignature && savedLogs.length >= 2) {
           if (savedLogs.length > 0) {
             document.getElementById('lastUpdatedTime').innerText = savedLogs[savedLogs.length - 1].time;
           }
