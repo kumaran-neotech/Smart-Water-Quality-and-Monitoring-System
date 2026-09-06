@@ -44,7 +44,9 @@
 
     * { box-sizing: border-box; }
 
+    /* Hidden by default so unauthenticated users never see the dashboard flash */
     body {
+      display: none;
       margin: 0;
       padding: 0 0 60px;
       background: var(--bg);
@@ -570,23 +572,36 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
+    // --- USER-SCOPED STORAGE VARIABLES ---
+    let currentUserId = null;
+    let savedLogs = [];
+
     // --- 3. AUTH STATE GUARD ---
     auth.onAuthStateChanged((user) => {
       if (!user) {
-        window.location.href = "login.html";
+        // Redirect immediately if not logged in
+        window.location.replace("login.html");
       } else {
+        // Authenticated: reveal the interface
+        currentUserId = user.uid;
+        document.body.style.display = "block";
+
         document.getElementById('displayUserEmail').innerText = user.email;
         db.ref('users/' + user.uid).once('value', (snap) => {
           const profile = snap.val();
           document.getElementById('displayUserName').innerText = 
             (profile && profile.name) ? profile.name : (user.displayName || "Operator");
         });
+
+        // Load logs strictly associated with this user's UID
+        savedLogs = JSON.parse(localStorage.getItem(`waterQualityLogs_${currentUserId}`)) || [];
+        renderUIFromLogs();
       }
     });
 
     function handleSignOut() {
       auth.signOut().then(() => {
-        window.location.href = "login.html";
+        window.location.replace("login.html");
       });
     }
 
@@ -639,9 +654,7 @@
       return Math.max(0, score);
     }
 
-    // --- 7. LOCAL STORAGE LOGS ---
-    let savedLogs = JSON.parse(localStorage.getItem('waterQualityLogs')) || [];
-
+    // --- 7. USER-SCOPED LOG RENDERING ---
     function renderUIFromLogs() {
       const historyBody = document.getElementById('historyBody');
       historyBody.innerHTML = '';
@@ -670,13 +683,12 @@
       liveChart.update();
     }
 
-    renderUIFromLogs();
-
     function clearAllLogs() {
+      if (!currentUserId) return;
       if (confirm("Are you sure you want to clear your telemetry log history?")) {
         savedLogs = [];
-        localStorage.removeItem('waterQualityLogs');
-        localStorage.removeItem('lastSavedReading');
+        localStorage.removeItem(`waterQualityLogs_${currentUserId}`);
+        localStorage.removeItem(`lastSavedReading_${currentUserId}`);
         renderUIFromLogs();
       }
     }
@@ -762,7 +774,10 @@
       document.getElementById('wqiGrade').innerText = wqi >= 80 ? 'Good — Potable Quality' : 'Poor — Treatment Required';
       updateGauge(wqi);
 
-      const lastSavedSignature = localStorage.getItem('lastSavedReading');
+      // Only save logs once user session is loaded
+      if (!currentUserId) return;
+
+      const lastSavedSignature = localStorage.getItem(`lastSavedReading_${currentUserId}`);
 
       if (lastSavedSignature === currentSignature) {
         if (savedLogs.length > 0) {
@@ -773,7 +788,7 @@
 
       const newTime = new Date().toLocaleTimeString();
       document.getElementById('lastUpdatedTime').innerText = newTime;
-      localStorage.setItem('lastSavedReading', currentSignature);
+      localStorage.setItem(`lastSavedReading_${currentUserId}`, currentSignature);
 
       const newEntry = {
         time: newTime,
@@ -786,7 +801,7 @@
 
       savedLogs.push(newEntry);
       if (savedLogs.length > 12) savedLogs.shift();
-      localStorage.setItem('waterQualityLogs', JSON.stringify(savedLogs));
+      localStorage.setItem(`waterQualityLogs_${currentUserId}`, JSON.stringify(savedLogs));
 
       renderUIFromLogs();
     });
