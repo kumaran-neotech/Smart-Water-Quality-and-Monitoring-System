@@ -28,7 +28,18 @@
       border-radius: 12px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
       padding: 30px;
+      text-align: center;
     }
+    
+    /* Logo Styling */
+    .brand-logo {
+      width: 110px;
+      height: 110px;
+      object-fit: contain;
+      margin: 0 auto 12px auto;
+      display: block;
+    }
+
     .auth-card h2 {
       margin-top: 0;
       margin-bottom: 8px;
@@ -44,6 +55,7 @@
     }
     .form-group {
       margin-bottom: 16px;
+      text-align: left;
     }
     .form-group label {
       display: block;
@@ -157,19 +169,20 @@
 <body>
 
   <div class="auth-card">
+    <!-- Brand Logo -->
+    <img src="logo.png" alt="JALPRAGYA Logo" class="brand-logo" />
+
     <h2 id="formTitle">Welcome Back</h2>
     <p class="subtitle" id="formSubtitle">Sign in to access your water telemetry</p>
 
     <div id="msgBox" class="msg-box"></div>
 
     <form id="authForm">
-      <!-- Full Name (Shown only during sign-up) -->
       <div class="form-group" id="nameGroup" style="display: none;">
         <label for="userName">Full Name</label>
         <input type="text" id="userName" placeholder="e.g. John Doe" />
       </div>
 
-      <!-- Purifier Device ID (Shown only during sign-up) -->
       <div class="form-group" id="deviceGroup" style="display: none;">
         <label for="deviceId">Purifier Device ID</label>
         <input type="text" id="deviceId" placeholder="e.g. ESP8266_PURIFIER_01" />
@@ -190,7 +203,6 @@
 
     <div class="divider">or</div>
 
-    <!-- Google Sign-In Button -->
     <button type="button" class="btn-google" id="googleLoginBtn">
       <svg viewBox="0 0 24 24">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -208,8 +220,6 @@
   </div>
 
   <script>
-    // --- WEB3FORMS CONFIGURATION ---
-
     const firebaseConfig = {
       apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
       authDomain: "smart-water-purification-96dc4.firebaseapp.com",
@@ -271,7 +281,6 @@
       msgBox.style.display = 'none';
     }
 
-    // Email & Password Handler
     document.getElementById('authForm').addEventListener('submit', (e) => {
       e.preventDefault();
       hideMessage();
@@ -311,7 +320,7 @@
         auth.signInWithEmailAndPassword(email, password)
           .then(() => {
             showMessage("Login successful! Redirecting...", false);
-            setTimeout(() => { window.location.href = "index.html";  }, 800);
+            setTimeout(() => { window.location.href = "index.html"; }, 800);
           })
           .catch((err) => {
             submitBtn.disabled = false;
@@ -321,7 +330,6 @@
       }
     });
 
-    // Google Sign-In Handler
     googleLoginBtn.addEventListener('click', () => {
       hideMessage();
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -329,7 +337,6 @@
       auth.signInWithPopup(provider)
         .then((result) => {
           const user = result.user;
-          // Check if profile exists; if first time, save their default record
           const userRef = db.ref('users/' + user.uid);
           return userRef.once('value').then((snap) => {
             if (!snap.exists()) {

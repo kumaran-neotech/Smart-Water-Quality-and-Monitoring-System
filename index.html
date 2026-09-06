@@ -64,7 +64,7 @@
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--panel-border);
-      padding: 18px 32px;
+      padding: 14px 32px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -72,6 +72,20 @@
       top: 0;
       z-index: 100;
     }
+    
+    .brand-container {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-logo {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.3));
+    }
+
     .topbar .brand { display: flex; flex-direction: column; gap: 3px; }
     .topbar h1 {
       margin: 0;
@@ -397,11 +411,14 @@
 </head>
 <body>
 
-  <!-- Top Navbar -->
+  <!-- Top Navbar with Logo -->
   <div class="topbar">
-    <div class="brand">
-      <h1>Smart Water Purification &amp; Telemetry</h1>
-      <span class="tagline">IoT Monitoring System • SIH Edition</span>
+    <div class="brand-container">
+      <img src="logo.png" alt="JALPRAGYA Logo" class="nav-logo" />
+      <div class="brand">
+        <h1>Smart Water Purification &amp; Telemetry</h1>
+        <span class="tagline">IoT Monitoring System • SIH Edition</span>
+      </div>
     </div>
     <div class="live-pill">
       <span class="live-dot off" id="liveDot"></span>
@@ -498,16 +515,15 @@
 
   <script>
     // --- 1. EMAILJS CONFIGURATION ---
-    // Replace these two with your IDs from EmailJS
-    const EMAILJS_SERVICE_ID = "service_ewmxgqu";     // From Email Services tab (e.g. service_xxxxxxx)
-    const EMAILJS_TEMPLATE_ID = "template_21qob55";            // Your configured template ID
-    const EMAILJS_PUBLIC_KEY = "V_USgYuuXLJ5IwL4y";     // From Account tab
+    const EMAILJS_SERVICE_ID = "service_ewmxgqu";
+    const EMAILJS_TEMPLATE_ID = "template_21qob55";
+    const EMAILJS_PUBLIC_KEY = "V_USgYuuXLJ5IwL4y";
 
     emailjs.init(EMAILJS_PUBLIC_KEY);
 
     let wasSafeEarlier = true;
     let lastAlertSentTime = 0;
-    const ALERT_COOLDOWN_MS = 10 * 60 * 1000; // 10-minute cooldown to prevent spamming your free limit
+    const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
 
     function sendEmailToActiveUser(recipientEmail, operatorName, violations, ph, tds, turb, temp) {
       const now = Date.now();
@@ -517,7 +533,7 @@
       }
 
       const templateParams = {
-        to_email: recipientEmail, // Dynamically routes directly to the logged-in user!
+        to_email: recipientEmail,
         user_name: operatorName || "Operator",
         violations: violations.map(v => "• " + v).join("\n"),
         ph: ph.toFixed(2),
@@ -683,13 +699,11 @@
 
       const currentSignature = `${ph.toFixed(2)}_${tds.toFixed(1)}_${turb.toFixed(2)}_${temp.toFixed(1)}`;
 
-      // Update sensor value cards
       document.getElementById('phVal').innerText = ph;
       document.getElementById('tdsVal').innerText = tds;
       document.getElementById('turbVal').innerText = turb;
       document.getElementById('tempVal').innerText = temp + '°C';
 
-      // Evaluate violations
       let issues = [];
 
       if (ph < 6.5) {
@@ -718,7 +732,7 @@
         banner.className = 'status-banner safe';
         banner.innerText = '🟢 Safe Water — Potable';
         alertBox.style.display = 'none';
-        wasSafeEarlier = true; // Reset trigger state when safe
+        wasSafeEarlier = true;
       } else {
         banner.className = 'status-banner unsafe';
         banner.innerText = '🔴 Unsafe Water — Contamination Detected';
@@ -733,7 +747,6 @@
           <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
         `;
 
-        // Dispatch email dynamically to the logged-in user on transition
         if (wasSafeEarlier) {
           const activeUser = auth.currentUser;
           if (activeUser && activeUser.email) {
@@ -744,13 +757,11 @@
         }
       }
 
-      // Compute and render WQI
       const wqi = computeWQI(ph, tds, turb);
       document.getElementById('wqiVal').innerText = wqi;
       document.getElementById('wqiGrade').innerText = wqi >= 80 ? 'Good — Potable Quality' : 'Poor — Treatment Required';
       updateGauge(wqi);
 
-      // Prevent duplicate table entries
       const lastSavedSignature = localStorage.getItem('lastSavedReading');
 
       if (lastSavedSignature === currentSignature) {
