@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Chart.js CDN -->
+  
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Firebase App, Auth & Database SDK (v8) -->
@@ -17,7 +17,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- EmailJS Browser SDK (100% Free) -->
+ 
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
   <style>
@@ -128,7 +128,7 @@
 
     .container { max-width: 1120px; margin: 0 auto; padding: 24px 20px 0; }
 
-    /* User Profile Bar */
+    /* User Profile*/
     .user-bar {
       display: flex;
       justify-content: space-between;
@@ -263,7 +263,7 @@
     }
     .meta-row b { color: var(--cyan); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
 
-    /* Actionable Alerts Panel */
+    /* Alerts Panel */
     .alert-panel {
       display: none;
       background: rgba(255, 77, 106, 0.08);
@@ -297,7 +297,7 @@
       color: #ffd2da;
     }
 
-    /* Sensor Readouts Grid */
+    /* Sensor Grid*/
     .readouts {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -430,7 +430,7 @@
 
   <div class="container">
 
-    <!-- Logged-in User Profile Bar -->
+
     <div class="user-bar">
       <div>
         Active Operator: <b id="displayUserName">User</b> 
@@ -439,7 +439,7 @@
       <button class="signout-btn" onclick="handleSignOut()">Sign Out</button>
     </div>
 
-    <!-- Hero: Gauge + Potability Verdict -->
+  
     <div class="hero">
       <div class="gauge-wrap">
         <div class="gauge" id="wqiGauge">
@@ -455,15 +455,15 @@
         <div id="statusBanner" class="status-banner safe">Awaiting first reading</div>
         <div class="meta-row">
           <span>Last Tested: <b id="lastUpdatedTime">--</b></span>
-          <span>Source: <b>Firebase RTDB /live_data</b></span>
+          <span>Source: <b id="dataSourceLabel">Firebase RTDB</b></span>
         </div>
       </div>
     </div>
 
-    <!-- Prescriptive Actionable Alert Panel -->
+   
     <div id="alertBox" class="alert-panel"></div>
 
-    <!-- Primary Sensor Readouts -->
+    
     <div class="readouts">
       <div class="readout ph">
         <div class="label">pH Level</div>
@@ -487,13 +487,13 @@
       </div>
     </div>
 
-    <!-- Parameter Variation Chart -->
+
     <div class="section-box">
       <h2>Parameter Variation History</h2>
       <canvas id="liveChart" height="85"></canvas>
     </div>
 
-    <!-- Historical Log Table -->
+   
     <div class="section-box">
       <h2>
         Session Test Logs
@@ -516,7 +516,7 @@
   </div>
 
   <script>
-    // --- 1. EMAILJS CONFIGURATION ---
+    
     const EMAILJS_SERVICE_ID = "service_ewmxgqu";
     const EMAILJS_TEMPLATE_ID = "template_21qob55";
     const EMAILJS_PUBLIC_KEY = "V_USgYuuXLJ5IwL4y";
@@ -557,7 +557,7 @@
         });
     }
 
-    // --- 2. FIREBASE CONFIGURATION ---
+    
     const firebaseConfig = {
       apiKey: "AIzaSyBxkpre7B472ji7SezHS125QEfWa_nfEH0",
       authDomain: "smart-water-purification-96dc4.firebaseapp.com",
@@ -572,28 +572,108 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
-    // --- USER-SCOPED STORAGE VARIABLES ---
+    // --- USER & DEVICE-SCOPED VARIABLES ---
     let currentUserId = null;
+    let currentDeviceId = null;
     let savedLogs = [];
+    let liveChart = null;
+
+    // --- CHART INITIALIZATION (Runs only after canvas has size) ---
+    function initChart() {
+      const canvas = document.getElementById('liveChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      
+      if (liveChart) {
+        liveChart.destroy();
+      }
+
+      liveChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { 
+              label: 'pH', 
+              borderColor: '#38bdf8', 
+              backgroundColor: 'rgba(56, 189, 248, 0.1)', 
+              data: [], 
+              tension: 0.3, 
+              fill: false, 
+              borderWidth: 2.5,
+              pointRadius: 4 
+            },
+            { 
+              label: 'Turbidity (NTU)', 
+              borderColor: '#fbbf24', 
+              backgroundColor: 'rgba(251, 191, 36, 0.1)', 
+              data: [], 
+              tension: 0.3, 
+              fill: false, 
+              borderWidth: 2.5,
+              pointRadius: 4
+            },
+            { 
+              label: 'TDS (Scaled ÷ 100)', 
+              borderColor: '#34d399', 
+              backgroundColor: 'rgba(52, 211, 153, 0.1)', 
+              data: [], 
+              tension: 0.3, 
+              fill: false, 
+              borderWidth: 2.5,
+              pointRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 12 } } }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#64748b' }
+            },
+            x: { 
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#64748b' }
+            }
+          }
+        }
+      });
+    }
 
     // --- 3. AUTH STATE GUARD ---
     auth.onAuthStateChanged((user) => {
       if (!user) {
-        // Redirect immediately if not logged in
         window.location.replace("login.html");
       } else {
-        // Authenticated: reveal the interface
         currentUserId = user.uid;
+        
+        // 1. Reveal page first so canvas gets measurable dimensions
         document.body.style.display = "block";
 
+        // 2. Initialize the chart
+        initChart();
+
         document.getElementById('displayUserEmail').innerText = user.email;
+        
         db.ref('users/' + user.uid).once('value', (snap) => {
-          const profile = snap.val();
+          const profile = snap.val() || {};
           document.getElementById('displayUserName').innerText = 
-            (profile && profile.name) ? profile.name : (user.displayName || "Operator");
+            profile.name || user.displayName || "Operator";
+          
+          currentDeviceId = profile.deviceId || "ESP8266_PURIFIER_01";
+          document.getElementById('dataSourceLabel').innerText = `Device: ${currentDeviceId}`;
+
+          // Start listening to the assigned device
+          startDeviceTelemetryListener(currentDeviceId);
         });
 
-        // Load logs strictly associated with this user's UID
+        // Load logs strictly associated with this user
         savedLogs = JSON.parse(localStorage.getItem(`waterQualityLogs_${currentUserId}`)) || [];
         renderUIFromLogs();
       }
@@ -604,37 +684,6 @@
         window.location.replace("login.html");
       });
     }
-
-    // --- 4. CHART INITIALIZATION ---
-    const ctx = document.getElementById('liveChart').getContext('2d');
-    const liveChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'pH', borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.1)', data: [], tension: 0.3, fill: false, borderWidth: 2.5 },
-          { label: 'Turbidity (NTU)', borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', data: [], tension: 0.3, fill: false, borderWidth: 2.5 },
-          { label: 'TDS (Scaled ÷ 100)', borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', data: [], tension: 0.3, fill: false, borderWidth: 2.5 }
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 12 } } }
-        },
-        scales: {
-          y: { 
-            beginAtZero: true, 
-            grid: { color: 'rgba(255,255,255,0.05)' },
-            ticks: { color: '#64748b' }
-          },
-          x: { 
-            grid: { color: 'rgba(255,255,255,0.05)' },
-            ticks: { color: '#64748b' }
-          }
-        }
-      }
-    });
 
     // --- 5. DYNAMIC GAUGE HELPER ---
     function updateGauge(wqi) {
@@ -657,7 +706,10 @@
     // --- 7. USER-SCOPED LOG RENDERING ---
     function renderUIFromLogs() {
       const historyBody = document.getElementById('historyBody');
-      historyBody.innerHTML = '';
+      if (historyBody) historyBody.innerHTML = '';
+      
+      if (!liveChart) return;
+
       liveChart.data.labels = [];
       liveChart.data.datasets[0].data = [];
       liveChart.data.datasets[1].data = [];
@@ -677,7 +729,7 @@
           <td>${item.temp}°C</td>
           <td>${item.isSafe ? '<span class="badge-safe">SAFE</span>' : '<span class="badge-unsafe">UNSAFE</span>'}</td>
         </tr>`;
-        historyBody.innerHTML = row + historyBody.innerHTML;
+        if (historyBody) historyBody.innerHTML = row + historyBody.innerHTML;
       });
 
       liveChart.update();
@@ -693,118 +745,111 @@
       }
     }
 
-    // --- 8. REALTIME LISTENER ON /live_data ---
-    db.ref('/live_data').on('value', (snapshot) => {
-      const data = snapshot.val();
-
+    // --- 8. REALTIME TELEMETRY LISTENER ---
+    function startDeviceTelemetryListener(deviceId) {
       const liveDot = document.getElementById('liveDot');
       const liveLabel = document.getElementById('liveLabel');
-      liveDot.classList.remove('off');
-      liveLabel.innerText = 'Connected & Telemetry Active';
 
-      if (!data) return;
+      // Detach any previous listeners
+      db.ref(`devices/${deviceId}/live_data`).off();
 
-      const ph = parseFloat(data.ph) || 0;
-      const tds = parseFloat(data.tds) || 0;
-      const turb = parseFloat(data.turbidity) || 0;
-      const temp = parseFloat(data.temperature) || 0;
+      db.ref(`devices/${deviceId}/live_data`).on('value', (snapshot) => {
+        const data = snapshot.val();
 
-      const currentSignature = `${ph.toFixed(2)}_${tds.toFixed(1)}_${turb.toFixed(2)}_${temp.toFixed(1)}`;
+        liveDot.classList.remove('off');
+        liveLabel.innerText = `Active: ${deviceId}`;
 
-      document.getElementById('phVal').innerText = ph;
-      document.getElementById('tdsVal').innerText = tds;
-      document.getElementById('turbVal').innerText = turb;
-      document.getElementById('tempVal').innerText = temp + '°C';
+        if (!data) return;
 
-      let issues = [];
+        const ph = parseFloat(data.ph) || 0;
+        const tds = parseFloat(data.tds) || 0;
+        const turb = parseFloat(data.turbidity) || 0;
+        const temp = parseFloat(data.temperature) || 0;
 
-      if (ph < 6.5) {
-        issues.push(`Acidic Water detected (pH ${ph} < 6.5 threshold)`);
-      } else if (ph > 8.5) {
-        issues.push(`Alkaline Water detected (pH ${ph} > 8.5 threshold)`);
-      }
+        const currentSignature = `${ph.toFixed(2)}_${tds.toFixed(1)}_${turb.toFixed(2)}_${temp.toFixed(1)}`;
 
-      if (tds > 500) {
-        issues.push(`High Dissolved Solids (${tds} ppm > 500 ppm limit)`);
-      }
+        document.getElementById('phVal').innerText = ph;
+        document.getElementById('tdsVal').innerText = tds;
+        document.getElementById('turbVal').innerText = turb;
+        document.getElementById('tempVal').innerText = temp + '°C';
 
-      if (turb > 5.0) {
-        issues.push(`High Turbidity (${turb} NTU > 5.0 NTU limit)`);
-      }
+        let issues = [];
+        if (ph < 6.5) issues.push(`Acidic Water detected (pH ${ph} < 6.5 threshold)`);
+        else if (ph > 8.5) issues.push(`Alkaline Water detected (pH ${ph} > 8.5 threshold)`);
 
-      if (temp > 35.0) {
-        issues.push(`High Water Temperature (${temp}°C)`);
-      }
+        if (tds > 500) issues.push(`High Dissolved Solids (${tds} ppm > 500 ppm limit)`);
+        if (turb > 5.0) issues.push(`High Turbidity (${turb} NTU > 5.0 NTU limit)`);
+        if (temp > 35.0) issues.push(`High Water Temperature (${temp}°C)`);
 
-      const banner = document.getElementById('statusBanner');
-      const alertBox = document.getElementById('alertBox');
-      const isSafe = (issues.length === 0);
+        const banner = document.getElementById('statusBanner');
+        const alertBox = document.getElementById('alertBox');
+        const isSafe = (issues.length === 0);
 
-      if (isSafe) {
-        banner.className = 'status-banner safe';
-        banner.innerText = '🟢 Safe Water — Potable';
-        alertBox.style.display = 'none';
-        wasSafeEarlier = true;
-      } else {
-        banner.className = 'status-banner unsafe';
-        banner.innerText = '🔴 Unsafe Water — Contamination Detected';
-        alertBox.style.display = 'block';
-        
-        const validIssues = issues.filter(item => item && item.trim().length > 0);
-        const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
+        if (isSafe) {
+          banner.className = 'status-banner safe';
+          banner.innerText = '🟢 Safe Water — Potable';
+          alertBox.style.display = 'none';
+          wasSafeEarlier = true;
+        } else {
+          banner.className = 'status-banner unsafe';
+          banner.innerText = '🔴 Unsafe Water — Contamination Detected';
+          alertBox.style.display = 'block';
+          
+          const validIssues = issues.filter(item => item && item.trim().length > 0);
+          const issuesHtml = validIssues.map(item => `<li>${item}</li>`).join('');
 
-        alertBox.innerHTML = `
-          <div class="alert-title">⚠️ Immediate Attention Required</div>
-          <div class="section-title">Violations:</div>
-          <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
-        `;
+          alertBox.innerHTML = `
+            <div class="alert-title">⚠️ Immediate Attention Required</div>
+            <div class="section-title">Violations:</div>
+            <ul style="margin: 0; padding-left: 18px;">${issuesHtml}</ul>
+          `;
 
-        if (wasSafeEarlier) {
-          const activeUser = auth.currentUser;
-          if (activeUser && activeUser.email) {
-            const operatorName = document.getElementById('displayUserName').innerText;
-            sendEmailToActiveUser(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
+          if (wasSafeEarlier) {
+            const activeUser = auth.currentUser;
+            if (activeUser && activeUser.email) {
+              const operatorName = document.getElementById('displayUserName').innerText;
+              sendEmailToActiveUser(activeUser.email, operatorName, validIssues, ph, tds, turb, temp);
+            }
+            wasSafeEarlier = false;
           }
-          wasSafeEarlier = false;
         }
-      }
 
-      const wqi = computeWQI(ph, tds, turb);
-      document.getElementById('wqiVal').innerText = wqi;
-      document.getElementById('wqiGrade').innerText = wqi >= 80 ? 'Good — Potable Quality' : 'Poor — Treatment Required';
-      updateGauge(wqi);
+        const wqi = computeWQI(ph, tds, turb);
+        document.getElementById('wqiVal').innerText = wqi;
+        document.getElementById('wqiGrade').innerText = wqi >= 80 ? 'Good — Potable Quality' : 'Poor — Treatment Required';
+        updateGauge(wqi);
 
-      // Only save logs once user session is loaded
-      if (!currentUserId) return;
+        if (!currentUserId) return;
 
-      const lastSavedSignature = localStorage.getItem(`lastSavedReading_${currentUserId}`);
+        const lastSavedSignature = localStorage.getItem(`lastSavedReading_${currentUserId}`);
 
-      if (lastSavedSignature === currentSignature) {
-        if (savedLogs.length > 0) {
-          document.getElementById('lastUpdatedTime').innerText = savedLogs[savedLogs.length - 1].time;
+        if (lastSavedSignature === currentSignature) {
+          if (savedLogs.length > 0) {
+            document.getElementById('lastUpdatedTime').innerText = savedLogs[savedLogs.length - 1].time;
+          }
+          return;
         }
-        return;
-      }
 
-      const newTime = new Date().toLocaleTimeString();
-      document.getElementById('lastUpdatedTime').innerText = newTime;
-      localStorage.setItem(`lastSavedReading_${currentUserId}`, currentSignature);
+        const newTime = new Date().toLocaleTimeString();
+        document.getElementById('lastUpdatedTime').innerText = newTime;
+        localStorage.setItem(`lastSavedReading_${currentUserId}`, currentSignature);
 
-      const newEntry = {
-        time: newTime,
-        ph: ph,
-        tds: tds,
-        turb: turb,
-        temp: temp,
-        isSafe: isSafe
-      };
+        const newEntry = {
+          time: newTime,
+          ph: ph,
+          tds: tds,
+          turb: turb,
+          temp: temp,
+          isSafe: isSafe
+        };
 
-      savedLogs.push(newEntry);
-      if (savedLogs.length > 12) savedLogs.shift();
-      localStorage.setItem(`waterQualityLogs_${currentUserId}`, JSON.stringify(savedLogs));
+        savedLogs.push(newEntry);
+        if (savedLogs.length > 12) savedLogs.shift();
+        localStorage.setItem(`waterQualityLogs_${currentUserId}`, JSON.stringify(savedLogs));
 
-      renderUIFromLogs();
-    });
+        renderUIFromLogs();
+      });
+    }
   </script>
 </body>
 </html>
